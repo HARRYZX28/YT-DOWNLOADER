@@ -31,4 +31,9 @@ yarn-error.log*
 *.swo
 
 # Backend specific
-backend/downloads/ 
+backend/downloads/
+
+# Video files
+*.mp4
+*.m4a
+*.webm 
