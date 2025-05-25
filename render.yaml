@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: yt-downloader-backend
+    env: node
+    buildCommand: |
+      apt-get update && apt-get install -y ffmpeg
+      cd backend && npm install && npm run postinstall
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ALLOWED_ORIGINS
+        value: https://yt-downloader-git-main-harrys-projects-485c0726.vercel.app
+    healthCheckPath: /health 

@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 3000;
 // CORS configuration
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',')
-  : ['http://localhost:5173', 'https://yt-downloader-harryzx28.vercel.app'];
+  : ['http://localhost:5173', 'https://yt-downloader-git-main-harrys-projects-485c0726.vercel.app'];
 
 app.use(cors({
   origin: function(origin, callback) {
@@ -36,7 +36,7 @@ app.use(express.json());
 // Create downloads directory if it doesn't exist
 const downloadsDir = path.join(__dirname, 'downloads');
 if (!existsSync(downloadsDir)) {
-  fs.mkdir(downloadsDir);
+  fs.mkdir(downloadsDir, { recursive: true });
 }
 
 // Health check endpoint
@@ -44,7 +44,21 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// Cleanup function for temporary files
+async function cleanupFiles(videoPath) {
+  try {
+    if (existsSync(videoPath)) {
+      await fs.unlink(videoPath);
+      console.log('Temporary file deleted:', videoPath);
+    }
+  } catch (error) {
+    console.error('Error cleaning up files:', error);
+  }
+}
+
 app.post('/download', async (req, res) => {
+  let videoPath = null;
+  
   try {
     const { url } = req.body;
     console.log('Received download request for URL:', url);
@@ -56,12 +70,13 @@ app.post('/download', async (req, res) => {
 
     // Generate unique filename
     const timestamp = Date.now();
-    const videoPath = path.join(downloadsDir, `video_${timestamp}.mp4`);
+    videoPath = path.join(downloadsDir, `video_${timestamp}.mp4`);
 
     console.log('Starting download to path:', videoPath);
 
-    // Download and merge video using yt-dlp
-    const command = `yt-dlp "${url}" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]" --merge-output-format mp4 -o "${videoPath}"`;
+    // Download and merge video using local yt-dlp
+    const ytDlpPath = path.join(__dirname, 'yt-dlp');
+    const command = `${ytDlpPath} "${url}" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]" --merge-output-format mp4 -o "${videoPath}"`;
     
     // Execute the command
     const { stdout, stderr } = await execPromise(command);
@@ -76,26 +91,21 @@ app.post('/download', async (req, res) => {
       throw new Error('Downloaded file not found');
     }
 
-    console.log('Download completed, sending file...');
-
     // Send file to client
-    res.download(videoPath, async (err) => {
+    res.sendFile(videoPath, async (err) => {
       if (err) {
         console.error('Error sending file:', err);
       }
-      
-      // Delete file after sending
-      try {
-        await fs.unlink(videoPath);
-        console.log('Temporary file deleted:', videoPath);
-      } catch (deleteErr) {
-        console.error('Error deleting file:', deleteErr);
-      }
+      // Clean up after sending
+      await cleanupFiles(videoPath);
     });
-
   } catch (error) {
     console.error('Download error:', error);
-    res.status(500).json({ error: 'Failed to download video: ' + error.message });
+    // Clean up on error
+    if (videoPath) {
+      await cleanupFiles(videoPath);
+    }
+    res.status(500).json({ error: error.message });
   }
 });
 
