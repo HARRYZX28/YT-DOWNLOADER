@@ -11,10 +11,13 @@ const execPromise = util.promisify(exec);
 
 const app = express();
 
+// Port configuration
+const PORT = process.env.PORT || 3000;
+
 // CORS configuration
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
-  ? process.env.ALLOWED_ORIGINS.split(',') 
-  : ['http://localhost:5173'];
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : ['http://localhost:5173', 'https://yt-downloader-harryzx28.vercel.app'];
 
 app.use(cors({
   origin: function(origin, callback) {
@@ -102,7 +105,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
+// Start server
+app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 }); 
