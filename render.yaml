@@ -4,7 +4,10 @@ services:
     env: node
     buildCommand: |
       apt-get update && apt-get install -y ffmpeg
-      cd backend && npm install && npm run postinstall
+      mkdir -p backend/bin
+      curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o backend/bin/yt-dlp
+      chmod a+rx backend/bin/yt-dlp
+      cd backend && npm install
     startCommand: cd backend && npm start
     envVars:
       - key: NODE_ENV

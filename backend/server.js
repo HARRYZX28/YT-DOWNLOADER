@@ -75,7 +75,7 @@ app.post('/download', async (req, res) => {
     console.log('Starting download to path:', videoPath);
 
     // Download and merge video using local yt-dlp
-    const ytDlpPath = path.join(__dirname, 'yt-dlp');
+    const ytDlpPath = path.join(__dirname, 'bin', 'yt-dlp');
     const command = `${ytDlpPath} "${url}" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]" --merge-output-format mp4 -o "${videoPath}"`;
     
     // Execute the command
