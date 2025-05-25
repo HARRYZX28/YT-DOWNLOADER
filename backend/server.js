@@ -1,0 +1,108 @@
+const express = require('express');
+const cors = require('cors');
+const validator = require('validator');
+const path = require('path');
+const fs = require('fs/promises');
+const { existsSync } = require('fs');
+const { exec } = require('child_process');
+const util = require('util');
+
+const execPromise = util.promisify(exec);
+
+const app = express();
+
+// CORS configuration
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',') 
+  : ['http://localhost:5173'];
+
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      return callback(new Error('The CORS policy for this site does not allow access from the specified Origin.'), false);
+    }
+    return callback(null, true);
+  },
+  optionsSuccessStatus: 200
+}));
+
+app.use(express.json());
+
+// Create downloads directory if it doesn't exist
+const downloadsDir = path.join(__dirname, 'downloads');
+if (!existsSync(downloadsDir)) {
+  fs.mkdir(downloadsDir);
+}
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
+app.post('/download', async (req, res) => {
+  try {
+    const { url } = req.body;
+    console.log('Received download request for URL:', url);
+
+    // Validate URL
+    if (!url || !validator.isURL(url) || !url.includes('youtube.com') && !url.includes('youtu.be')) {
+      return res.status(400).json({ error: 'Invalid YouTube URL' });
+    }
+
+    // Generate unique filename
+    const timestamp = Date.now();
+    const videoPath = path.join(downloadsDir, `video_${timestamp}.mp4`);
+
+    console.log('Starting download to path:', videoPath);
+
+    // Download and merge video using yt-dlp
+    const command = `yt-dlp "${url}" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]" --merge-output-format mp4 -o "${videoPath}"`;
+    
+    // Execute the command
+    const { stdout, stderr } = await execPromise(command);
+    console.log('Download output:', stdout);
+    
+    if (stderr) {
+      console.error('Download stderr:', stderr);
+    }
+
+    // Check if file exists
+    if (!existsSync(videoPath)) {
+      throw new Error('Downloaded file not found');
+    }
+
+    console.log('Download completed, sending file...');
+
+    // Send file to client
+    res.download(videoPath, async (err) => {
+      if (err) {
+        console.error('Error sending file:', err);
+      }
+      
+      // Delete file after sending
+      try {
+        await fs.unlink(videoPath);
+        console.log('Temporary file deleted:', videoPath);
+      } catch (deleteErr) {
+        console.error('Error deleting file:', deleteErr);
+      }
+    });
+
+  } catch (error) {
+    console.error('Download error:', error);
+    res.status(500).json({ error: 'Failed to download video: ' + error.message });
+  }
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
+}); 
